@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Technische Aandelen Scanner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; }
+        .bullish { color: #22c55e; }
+        .bearish { color: #ef4444; }
+        .neutral { color: #f59e0b; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-white">Markt Scanner Dashboard</h1>
+            <span class="text-sm text-slate-400">Methode: SMA 50/200, RSI, MACD & Volume</span>
+        </div>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- Linkerpaneel: Scan Resultaten Tabel -->
+            <div class="lg:col-span-4 bg-slate-800 rounded-xl p-4 shadow-xl border border-slate-700 flex flex-col max-h-[85vh]">
+                <h2 class="text-lg font-semibold mb-4 text-slate-200 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-blue-500"></span> Scan Resultaten
+                </h2>
+                <div class="overflow-auto scrollbar-hide flex-1">
+                    <table class="w-full text-sm text-left">
+                        <thead class="text-xs text-slate-400 uppercase bg-slate-900/50 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-3 rounded-tl-lg">Ticker</th>
+                                <th class="px-3 py-3">Prijs</th>
+                                <th class="px-3 py-3">Rating</th>
+                                <th class="px-3 py-3 rounded-tr-lg">RSI</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scanner-table-body" class="divide-y divide-slate-700">
+                            <!-- Data wordt hier dynamisch geladen -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Rechterpaneel: Chart & Details -->
+            <div class="lg:col-span-8 flex flex-col gap-4">
+                <div class="bg-slate-800 rounded-xl p-4 shadow-xl border border-slate-700">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 id="chart-title" class="text-2xl font-bold text-white">Selecteer een aandeel</h2>
+                        <span id="chart-rating" class="px-4 py-1.5 rounded-full text-sm font-bold bg-slate-700 text-slate-300">-</span>
+                    </div>
+                    <div id="chart-container" class="w-full h-[450px] rounded-lg border border-slate-700 overflow-hidden"></div>
+                </div>
+                
+                <!-- Detailkaarten -->
+                <div id="details-panel" class="grid grid-cols-2 md:grid-cols-4 gap-4 hidden">
+                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                        <span class="text-slate-400 text-xs uppercase tracking-wider block mb-1">SMA 50</span>
+                        <span id="detail-sma50" class="font-mono text-xl font-semibold text-white">-</span>
+                    </div>
+                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                        <span class="text-slate-400 text-xs uppercase tracking-wider block mb-1">SMA 200</span>
+                        <span id="detail-sma200" class="font-mono text-xl font-semibold text-white">-</span>
+                    </div>
+                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                        <span class="text-slate-400 text-xs uppercase tracking-wider block mb-1">MACD vs Signal</span>
+                        <span id="detail-macd" class="font-mono text-xl font-semibold text-white">-</span>
+                    </div>
+                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                        <span class="text-slate-400 text-xs uppercase tracking-wider block mb-1">Volume Ratio</span>
+                        <span id="detail-vol" class="font-mono text-xl font-semibold text-white">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. Initialiseer TradingView Lightweight Chart
+        const chartContainer = document.getElementById('chart-container');
+        const chart = LightweightCharts.createChart(chartContainer, {
+            layout: { background: { type: 'solid', color: '#1e293b' }, textColor: '#cbd5e1' },
+            grid: { vertLines: { color: '#334155' }, horzLines: { color: '#334155' } },
+            width: chartContainer.clientWidth,
+            height: 450,
+            timeScale: { timeVisible: true, secondsVisible: false }
+        });
+
+        const candleSeries = chart.addCandlestickSeries({
+            upColor: '#22c55e', downColor: '#ef4444', borderVisible: false, wickUpColor: '#22c55e', wickDownColor: '#ef4444',
+        });
+
+        window.addEventListener('resize', () => {
+            chart.applyOptions({ width: chartContainer.clientWidth });
+        });
+
+        let scanData = [];
+
+        // 2. Laad de gegenereerde JSON data
+        fetch('scan_results.json')
+            .then(response => {
+                if (!response.ok) throw new Error("Netwerkfout bij laden JSON");
+                return response.json();
+            })
+            .then(data => {
+                scanData = data;
+                renderTable(data);
+                if (data.length > 0) loadChart(data[0].ticker, data[0]);
+            })
+            .catch(err => {
+                console.error("Fout:", err);
+                document.getElementById('scanner-table-body').innerHTML = 
+                    `<tr><td colspan="4" class="p-6 text-center text-red-400">
+                        Kon scan_results.json niet laden. Zorg dat dit bestand in dezelfde map staat als index.html.
+                     </td></tr>`;
+            });
+
+        // 3. Render de tabel
+        function renderTable(data) {
+            const tbody = document.getElementById('scanner-table-body');
+            tbody.innerHTML = '';
+            data.forEach(item => {
+                const ratingClass = item.rating.includes('Bullish') ? 'bullish' : (item.rating.includes('Bearish') ? 'bearish' : 'neutral');
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-slate-700/50 cursor-pointer transition-colors duration-150';
+                row.innerHTML = `
+                    <td class="px-3 py-3 font-bold text-white">${item.ticker}</td>
+                    <td class="px-3 py-3 font-mono">$${item.price}</td>
+                    <td class="px-3 py-3 font-semibold ${ratingClass}">${item.rating}</td>
+                    <td class="px-3 py-3 font-mono text-slate-300">${item.rsi}</td>
+                `;
+                row.onclick = () => loadChart(item.ticker, item);
+                tbody.appendChild(row);
+            });
+        }
+
+        // 4. Laad de chart en details
+        function loadChart(ticker, itemData) {
+            document.getElementById('chart-title').innerText = `${ticker} Analyse`;
+            
+            if (itemData) {
+                document.getElementById('details-panel').classList.remove('hidden');
+                document.getElementById('detail-sma50').innerText = `$${itemData.sma50}`;
+                document.getElementById('detail-sma200').innerText = `$${itemData.sma200}`;
+                document.getElementById('detail-macd').innerText = `${itemData.macd} / ${itemData.signal}`;
+                document.getElementById('detail-vol').innerText = `${itemData.vol_ratio}x`;
+                
+                const ratingEl = document.getElementById('chart-rating');
+                ratingEl.innerText = itemData.rating;
+                ratingEl.className = `px-4 py-1.5 rounded-full text-sm font-bold ${
+                    itemData.rating.includes('Bullish') ? 'bg-green-900/50 text-green-400 border border-green-700' : 
+                    (itemData.rating.includes('Bearish') ? 'bg-red-900/50 text-red-400 border border-red-700' : 
+                    'bg-yellow-900/50 text-yellow-400 border border-yellow-700')
+                }`;
+            }
+
+            // Haal live historische data op via de publieke Yahoo Finance API (CORS-vriendelijk voor frontend)
+            fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=6mo&interval=1d`)
+                .then(res => res.json())
+                .then(data => {
+                    const result = data.chart.result[0];
+                    const timestamps = result.timestamp;
+                    const quotes = result.indicators.quote[0];
+                    
+                    const chartData = [];
+                    for (let i = 0; i < timestamps.length; i++) {
+                        if (quotes.open[i] !== null) {
+                            chartData.push({
+                                time: timestamps[i],
+                                open: quotes.open[i],
+                                high: quotes.high[i],
+                                low: quotes.low[i],
+                                close: quotes.close[i]
+                            });
+                        }
+                    }
+                    candleSeries.setData(chartData);
+                    chart.timeScale().fitContent();
+                })
+                .catch(err => console.error("Fout bij ophalen chart data:", err));
+        }
+    </script>
+</body>
+</html>
