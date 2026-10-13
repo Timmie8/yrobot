@@ -3,41 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Technische Aandelen Scanner</title>
+    <title>Pro Aandelen Scanner Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <style>
-        body { background-color: #0f172a; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; }
+        body { background-color: #0b1120; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; }
         .bullish { color: #22c55e; }
         .bearish { color: #ef4444; }
         .neutral { color: #f59e0b; }
+        .bg-bullish { background-color: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); }
+        .bg-bearish { background-color: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="p-4 md:p-6 min-h-screen">
     <div class="max-w-7xl mx-auto">
-        <div class="flex justify-between items-center mb-6">
-            <h1 class="text-3xl font-bold text-white">Markt Scanner Dashboard</h1>
-            <span class="text-sm text-slate-400">Methode: SMA 50/200, RSI, MACD & Volume</span>
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-2">
+            <div>
+                <h1 class="text-3xl font-bold text-white tracking-tight">Markt Scanner Dashboard</h1>
+                <p class="text-slate-400 text-sm mt-1">Gratis Yahoo Finance data • SMA, RSI, MACD & Fair Value analyse</p>
+            </div>
+            <div class="flex gap-3 text-xs font-mono">
+                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> Bullish</span>
+                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-yellow-500"></span> Neutraal</span>
+                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-500"></span> Bearish</span>
+            </div>
         </div>
         
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <!-- Linkerpaneel: Scan Resultaten Tabel -->
-            <div class="lg:col-span-4 bg-slate-800 rounded-xl p-4 shadow-xl border border-slate-700 flex flex-col max-h-[85vh]">
-                <h2 class="text-lg font-semibold mb-4 text-slate-200 flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full bg-blue-500"></span> Scan Resultaten
+            <div class="lg:col-span-4 bg-slate-900 rounded-xl p-4 shadow-2xl border border-slate-800 flex flex-col max-h-[85vh]">
+                <h2 class="text-sm font-semibold mb-3 text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                    <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    Scan Resultaten
                 </h2>
                 <div class="overflow-auto scrollbar-hide flex-1">
                     <table class="w-full text-sm text-left">
-                        <thead class="text-xs text-slate-400 uppercase bg-slate-900/50 sticky top-0">
+                        <thead class="text-xs text-slate-500 uppercase bg-slate-950/50 sticky top-0 z-10 backdrop-blur-sm">
                             <tr>
                                 <th class="px-3 py-3 rounded-tl-lg">Ticker</th>
                                 <th class="px-3 py-3">Prijs</th>
                                 <th class="px-3 py-3">Rating</th>
-                                <th class="px-3 py-3 rounded-tr-lg">RSI</th>
+                                <th class="px-3 py-3 rounded-tr-lg text-right">Upside</th>
                             </tr>
                         </thead>
-                        <tbody id="scanner-table-body" class="divide-y divide-slate-700">
+                        <tbody id="scanner-table-body" class="divide-y divide-slate-800">
                             <!-- Data wordt hier dynamisch geladen -->
                         </tbody>
                     </table>
@@ -46,31 +56,71 @@
 
             <!-- Rechterpaneel: Chart & Details -->
             <div class="lg:col-span-8 flex flex-col gap-4">
-                <div class="bg-slate-800 rounded-xl p-4 shadow-xl border border-slate-700">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 id="chart-title" class="text-2xl font-bold text-white">Selecteer een aandeel</h2>
-                        <span id="chart-rating" class="px-4 py-1.5 rounded-full text-sm font-bold bg-slate-700 text-slate-300">-</span>
+                <div class="bg-slate-900 rounded-xl p-4 shadow-2xl border border-slate-800">
+                    <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
+                        <div>
+                            <h2 id="chart-title" class="text-2xl font-bold text-white">Selecteer een aandeel</h2>
+                            <p id="chart-subtitle" class="text-slate-400 text-sm">Klik op een rij in de tabel voor details</p>
+                        </div>
+                        <span id="chart-rating" class="px-4 py-1.5 rounded-lg text-sm font-bold bg-slate-800 text-slate-400 border border-slate-700">-</span>
                     </div>
-                    <div id="chart-container" class="w-full h-[450px] rounded-lg border border-slate-700 overflow-hidden"></div>
+                    <div id="chart-container" class="w-full h-[400px] rounded-lg border border-slate-800 overflow-hidden"></div>
                 </div>
                 
-                <!-- Detailkaarten -->
-                <div id="details-panel" class="grid grid-cols-2 md:grid-cols-4 gap-4 hidden">
-                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                        <span class="text-slate-400 text-xs uppercase tracking-wider block mb-1">SMA 50</span>
-                        <span id="detail-sma50" class="font-mono text-xl font-semibold text-white">-</span>
+                <!-- Gedetailleerde Indicator Kaarten -->
+                <div id="details-panel" class="grid grid-cols-2 md:grid-cols-4 gap-3 hidden">
+                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-slate-500 text-xs uppercase tracking-wider">SMA 50</span>
+                            <span id="badge-sma50" class="text-[10px] px-2 py-0.5 rounded font-bold">-</span>
+                        </div>
+                        <span id="detail-sma50" class="font-mono text-lg font-semibold text-white">-</span>
                     </div>
-                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                        <span class="text-slate-400 text-xs uppercase tracking-wider block mb-1">SMA 200</span>
-                        <span id="detail-sma200" class="font-mono text-xl font-semibold text-white">-</span>
+                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-slate-500 text-xs uppercase tracking-wider">SMA 200</span>
+                            <span id="badge-sma200" class="text-[10px] px-2 py-0.5 rounded font-bold">-</span>
+                        </div>
+                        <span id="detail-sma200" class="font-mono text-lg font-semibold text-white">-</span>
                     </div>
-                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                        <span class="text-slate-400 text-xs uppercase tracking-wider block mb-1">MACD vs Signal</span>
-                        <span id="detail-macd" class="font-mono text-xl font-semibold text-white">-</span>
+                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-slate-500 text-xs uppercase tracking-wider">RSI (14)</span>
+                            <span id="badge-rsi" class="text-[10px] px-2 py-0.5 rounded font-bold">-</span>
+                        </div>
+                        <span id="detail-rsi" class="font-mono text-lg font-semibold text-white">-</span>
                     </div>
-                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                        <span class="text-slate-400 text-xs uppercase tracking-wider block mb-1">Volume Ratio</span>
-                        <span id="detail-vol" class="font-mono text-xl font-semibold text-white">-</span>
+                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-slate-500 text-xs uppercase tracking-wider">MACD</span>
+                            <span id="badge-macd" class="text-[10px] px-2 py-0.5 rounded font-bold">-</span>
+                        </div>
+                        <span id="detail-macd" class="font-mono text-sm font-semibold text-white">-</span>
+                    </div>
+                    
+                    <!-- Extra yrobot.us stijl metrics -->
+                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 md:col-span-2">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-slate-500 text-xs uppercase tracking-wider">Fair Value (Analisten Doel)</span>
+                            <span id="badge-fairvalue" class="text-[10px] px-2 py-0.5 rounded font-bold bg-blue-900/30 text-blue-400 border border-blue-800">Target</span>
+                        </div>
+                        <div class="flex items-baseline gap-3">
+                            <span id="detail-target" class="font-mono text-xl font-bold text-white">-</span>
+                            <span id="detail-fvg" class="text-sm font-semibold">-</span>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 md:col-span-2">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-slate-500 text-xs uppercase tracking-wider">52-Weeks Range</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded font-bold bg-slate-800 text-slate-400 border border-slate-700">Positie</span>
+                        </div>
+                        <div class="flex items-baseline gap-3">
+                            <span id="detail-range" class="font-mono text-sm text-slate-300">-</span>
+                            <div class="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+                                <div id="range-bar" class="h-full bg-blue-500 rounded-full" style="width: 0%"></div>
+                            </div>
+                            <span id="detail-range-pct" class="font-mono text-sm font-bold text-blue-400">-</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -81,11 +131,11 @@
         // 1. Initialiseer TradingView Lightweight Chart
         const chartContainer = document.getElementById('chart-container');
         const chart = LightweightCharts.createChart(chartContainer, {
-            layout: { background: { type: 'solid', color: '#1e293b' }, textColor: '#cbd5e1' },
-            grid: { vertLines: { color: '#334155' }, horzLines: { color: '#334155' } },
+            layout: { background: { type: 'solid', color: '#0f172a' }, textColor: '#94a3b8' },
+            grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
             width: chartContainer.clientWidth,
-            height: 450,
-            timeScale: { timeVisible: true, secondsVisible: false }
+            height: 400,
+            timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#1e293b' }
         });
 
         const candleSeries = chart.addCandlestickSeries({
@@ -112,8 +162,9 @@
             .catch(err => {
                 console.error("Fout:", err);
                 document.getElementById('scanner-table-body').innerHTML = 
-                    `<tr><td colspan="4" class="p-6 text-center text-red-400">
-                        Kon scan_results.json niet laden. Zorg dat dit bestand in dezelfde map staat als index.html.
+                    `<tr><td colspan="4" class="p-6 text-center text-red-400 text-sm">
+                        Kon scan_results.json niet laden. Zorg dat dit bestand in dezelfde map staat als index.html.<br>
+                        <span class="text-slate-500">(Voer eerst scanner.py uit)</span>
                      </td></tr>`;
             });
 
@@ -122,42 +173,84 @@
             const tbody = document.getElementById('scanner-table-body');
             tbody.innerHTML = '';
             data.forEach(item => {
-                const ratingClass = item.rating.includes('Bullish') ? 'bullish' : (item.rating.includes('Bearish') ? 'bearish' : 'neutral');
+                const ratingClass = item.rating.includes('Buy') ? 'bullish' : (item.rating.includes('Sell') ? 'bearish' : 'neutral');
+                const fvgText = item.fair_value_gap_pct ? `${item.fair_value_gap_pct > 0 ? '+' : ''}${item.fair_value_gap_pct}%` : 'N/A';
+                const fvgClass = item.fair_value_gap_pct > 0 ? 'text-green-400' : (item.fair_value_gap_pct < 0 ? 'text-red-400' : 'text-slate-400');
+                
                 const row = document.createElement('tr');
-                row.className = 'hover:bg-slate-700/50 cursor-pointer transition-colors duration-150';
+                row.className = 'hover:bg-slate-800/70 cursor-pointer transition-colors duration-150 group';
                 row.innerHTML = `
-                    <td class="px-3 py-3 font-bold text-white">${item.ticker}</td>
-                    <td class="px-3 py-3 font-mono">$${item.price}</td>
+                    <td class="px-3 py-3 font-bold text-white group-hover:text-blue-400 transition-colors">${item.ticker}</td>
+                    <td class="px-3 py-3 font-mono text-slate-300">$${item.price}</td>
                     <td class="px-3 py-3 font-semibold ${ratingClass}">${item.rating}</td>
-                    <td class="px-3 py-3 font-mono text-slate-300">${item.rsi}</td>
+                    <td class="px-3 py-3 font-mono text-right ${fvgClass}">${fvgText}</td>
                 `;
                 row.onclick = () => loadChart(item.ticker, item);
                 tbody.appendChild(row);
             });
         }
 
+        // Helper voor badge kleuren
+        function getBadgeClass(status) {
+            if (status === 'Bullish' || status === 'Golden Cross') return 'bg-bullish';
+            if (status === 'Bearish' || status === 'Death Cross') return 'bg-bearish';
+            return 'bg-slate-800 text-slate-400 border-slate-700';
+        }
+
         // 4. Laad de chart en details
         function loadChart(ticker, itemData) {
-            document.getElementById('chart-title').innerText = `${ticker} Analyse`;
+            document.getElementById('chart-title').innerText = ticker;
+            document.getElementById('chart-subtitle').innerText = `Laatste update: ${new Date().toLocaleDateString('nl-NL')}`;
             
             if (itemData) {
                 document.getElementById('details-panel').classList.remove('hidden');
-                document.getElementById('detail-sma50').innerText = `$${itemData.sma50}`;
-                document.getElementById('detail-sma200').innerText = `$${itemData.sma200}`;
-                document.getElementById('detail-macd').innerText = `${itemData.macd} / ${itemData.signal}`;
-                document.getElementById('detail-vol').innerText = `${itemData.vol_ratio}x`;
                 
+                // Update details
+                document.getElementById('detail-sma50').innerText = `$${itemData.sma50}`;
+                document.getElementById('badge-sma50').innerText = itemData.indicators.sma50;
+                document.getElementById('badge-sma50').className = `text-[10px] px-2 py-0.5 rounded font-bold ${getBadgeClass(itemData.indicators.sma50)}`;
+
+                document.getElementById('detail-sma200').innerText = `$${itemData.sma200}`;
+                document.getElementById('badge-sma200').innerText = itemData.indicators.sma200;
+                document.getElementById('badge-sma200').className = `text-[10px] px-2 py-0.5 rounded font-bold ${getBadgeClass(itemData.indicators.sma200)}`;
+
+                document.getElementById('detail-rsi').innerText = itemData.rsi;
+                document.getElementById('badge-rsi').innerText = itemData.indicators.rsi;
+                document.getElementById('badge-rsi').className = `text-[10px] px-2 py-0.5 rounded font-bold ${getBadgeClass(itemData.indicators.rsi)}`;
+
+                document.getElementById('detail-macd').innerText = `${itemData.macd} / ${itemData.signal}`;
+                document.getElementById('badge-macd').innerText = itemData.indicators.macd;
+                document.getElementById('badge-macd').className = `text-[10px] px-2 py-0.5 rounded font-bold ${getBadgeClass(itemData.indicators.macd)}`;
+
+                // Fair Value
+                document.getElementById('detail-target').innerText = itemData.target_price ? `$${itemData.target_price}` : 'Geen data';
+                const fvgEl = document.getElementById('detail-fvg');
+                if (itemData.fair_value_gap_pct) {
+                    fvgEl.innerText = `(${itemData.fair_value_gap_pct > 0 ? '+' : ''}${itemData.fair_value_gap_pct}% potentieel)`;
+                    fvgEl.className = `text-sm font-semibold ${itemData.fair_value_gap_pct > 0 ? 'text-green-400' : 'text-red-400'}`;
+                } else {
+                    fvgEl.innerText = '';
+                }
+
+                // 52-Week Range
+                document.getElementById('detail-range').innerText = `$${itemData.low_52} - $${itemData.high_52}`;
+                document.getElementById('detail-range-pct').innerText = `${itemData.range_pct}%`;
+                document.getElementById('range-bar').style.width = `${itemData.range_pct}%`;
+                
+                // Rating Badge
                 const ratingEl = document.getElementById('chart-rating');
                 ratingEl.innerText = itemData.rating;
-                ratingEl.className = `px-4 py-1.5 rounded-full text-sm font-bold ${
-                    itemData.rating.includes('Bullish') ? 'bg-green-900/50 text-green-400 border border-green-700' : 
-                    (itemData.rating.includes('Bearish') ? 'bg-red-900/50 text-red-400 border border-red-700' : 
-                    'bg-yellow-900/50 text-yellow-400 border border-yellow-700')
-                }`;
+                if (itemData.rating.includes('Buy')) {
+                    ratingEl.className = 'px-4 py-1.5 rounded-lg text-sm font-bold bg-green-900/30 text-green-400 border border-green-800';
+                } else if (itemData.rating.includes('Sell')) {
+                    ratingEl.className = 'px-4 py-1.5 rounded-lg text-sm font-bold bg-red-900/30 text-red-400 border border-red-800';
+                } else {
+                    ratingEl.className = 'px-4 py-1.5 rounded-lg text-sm font-bold bg-yellow-900/30 text-yellow-400 border border-yellow-800';
+                }
             }
 
-            // Haal live historische data op via de publieke Yahoo Finance API (CORS-vriendelijk voor frontend)
-            fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=6mo&interval=1d`)
+            // Haal live historische data op via de publieke Yahoo Finance API
+            fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=1y&interval=1d`)
                 .then(res => res.json())
                 .then(data => {
                     const result = data.chart.result[0];
