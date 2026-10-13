@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS voor donker thema
+# Custom CSS voor donker thema en kleurcodering
 st.markdown("""
 <style>
     .main {
@@ -27,6 +27,52 @@ st.markdown("""
         padding: 1rem;
         border-radius: 0.5rem;
         border: 1px solid #334155;
+    }
+    .indicator-card {
+        background-color: #1e293b;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid #334155;
+        text-align: center;
+    }
+    .bullish {
+        color: #22c55e !important;
+        font-weight: bold;
+    }
+    .bearish {
+        color: #ef4444 !important;
+        font-weight: bold;
+    }
+    .neutral {
+        color: #f59e0b !important;
+        font-weight: bold;
+    }
+    .badge-bullish {
+        background-color: rgba(34, 197, 94, 0.2);
+        color: #22c55e;
+        padding: 0.25rem 0.75rem;
+        border-radius: 0.375rem;
+        font-size: 0.75rem;
+        font-weight: bold;
+        border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+    .badge-bearish {
+        background-color: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+        padding: 0.25rem 0.75rem;
+        border-radius: 0.375rem;
+        font-size: 0.75rem;
+        font-weight: bold;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .badge-neutral {
+        background-color: rgba(245, 158, 11, 0.2);
+        color: #f59e0b;
+        padding: 0.25rem 0.75rem;
+        border-radius: 0.375rem;
+        font-size: 0.75rem;
+        font-weight: bold;
+        border: 1px solid rgba(245, 158, 11, 0.3);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -226,6 +272,15 @@ def create_chart(ticker):
     
     return fig
 
+# Helper functie voor indicator badge
+def get_indicator_badge(status):
+    if status in ['Bullish', 'Golden Cross']:
+        return f'<span class="badge-bullish">{status}</span>'
+    elif status in ['Bearish', 'Death Cross']:
+        return f'<span class="badge-bearish">{status}</span>'
+    else:
+        return f'<span class="badge-neutral">{status}</span>'
+
 # Main app logic
 if scan_button or 'scan_results' in st.session_state:
     if scan_button:
@@ -281,9 +336,15 @@ if scan_button or 'scan_results' in st.session_state:
         # Detail view
         st.markdown(f"### 📈 {selected_ticker} Analyse")
         
-        # Rating badge
-        rating_color = "green" if "Buy" in selected_data['rating'] else ("red" if "Sell" in selected_data['rating'] else "orange")
-        st.markdown(f"#### Rating: :{rating_color}[**{selected_data['rating']}**] ({selected_data['bullish_count']}/5 bullish)")
+        # Rating badge met kleur
+        if "Buy" in selected_data['rating']:
+            rating_html = f'<span class="badge-bullish" style="font-size: 1rem; padding: 0.5rem 1rem;">{selected_data["rating"]} ({selected_data["bullish_count"]}/5 bullish)</span>'
+        elif "Sell" in selected_data['rating']:
+            rating_html = f'<span class="badge-bearish" style="font-size: 1rem; padding: 0.5rem 1rem;">{selected_data["rating"]} ({selected_data["bullish_count"]}/5 bullish)</span>'
+        else:
+            rating_html = f'<span class="badge-neutral" style="font-size: 1rem; padding: 0.5rem 1rem;">{selected_data["rating"]} ({selected_data["bullish_count"]}/5 bullish)</span>'
+        
+        st.markdown(rating_html, unsafe_allow_html=True)
         
         # Metric cards
         col1, col2, col3, col4 = st.columns(4)
@@ -305,30 +366,65 @@ if scan_button or 'scan_results' in st.session_state:
         
         st.markdown("---")
         
-        # Indicator details
+        # Indicator details met custom kleuren
         st.markdown("#### 🔍 Technische Indicatoren")
         
         ind_col1, ind_col2, ind_col3, ind_col4, ind_col5 = st.columns(5)
         
         with ind_col1:
             sma50_status = selected_data['indicators']['sma50']
-            st.metric("SMA 50", f"${selected_data['sma50']}", sma50_status)
+            badge = get_indicator_badge(sma50_status)
+            st.markdown(f"""
+            <div class="indicator-card">
+                <div style="color: #94a3b8; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.5rem;">SMA 50</div>
+                <div style="color: white; font-size: 1.25rem; font-weight: bold; margin-bottom: 0.5rem;">${selected_data['sma50']}</div>
+                <div>{badge}</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         with ind_col2:
             sma200_status = selected_data['indicators']['sma200']
-            st.metric("SMA 200", f"${selected_data['sma200']}", sma200_status)
+            badge = get_indicator_badge(sma200_status)
+            st.markdown(f"""
+            <div class="indicator-card">
+                <div style="color: #94a3b8; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.5rem;">SMA 200</div>
+                <div style="color: white; font-size: 1.25rem; font-weight: bold; margin-bottom: 0.5rem;">${selected_data['sma200']}</div>
+                <div>{badge}</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         with ind_col3:
             rsi_status = selected_data['indicators']['rsi']
-            st.metric("RSI (14)", selected_data['rsi'], rsi_status)
+            badge = get_indicator_badge(rsi_status)
+            st.markdown(f"""
+            <div class="indicator-card">
+                <div style="color: #94a3b8; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.5rem;">RSI (14)</div>
+                <div style="color: white; font-size: 1.25rem; font-weight: bold; margin-bottom: 0.5rem;">{selected_data['rsi']}</div>
+                <div>{badge}</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         with ind_col4:
             macd_status = selected_data['indicators']['macd']
-            st.metric("MACD", f"{selected_data['macd']}", macd_status)
+            badge = get_indicator_badge(macd_status)
+            st.markdown(f"""
+            <div class="indicator-card">
+                <div style="color: #94a3b8; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.5rem;">MACD</div>
+                <div style="color: white; font-size: 1.25rem; font-weight: bold; margin-bottom: 0.5rem;">{selected_data['macd']}</div>
+                <div>{badge}</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         with ind_col5:
             trend_status = selected_data['indicators']['trend']
-            st.metric("Trend", trend_status, f"Vol: {selected_data['vol_ratio']}x")
+            badge = get_indicator_badge(trend_status)
+            st.markdown(f"""
+            <div class="indicator-card">
+                <div style="color: #94a3b8; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.5rem;">Trend</div>
+                <div style="color: white; font-size: 1rem; font-weight: bold; margin-bottom: 0.5rem;">Vol: {selected_data['vol_ratio']}x</div>
+                <div>{badge}</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         st.markdown("---")
         
