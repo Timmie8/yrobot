@@ -1,32 +1,74 @@
+import streamlit as st
 import yfinance as yf
 import pandas as pd
-import json
-import warnings
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from datetime import datetime
 
-warnings.filterwarnings('ignore')
+# Pagina configuratie
+st.set_page_config(
+    page_title="Aandelen Scanner Dashboard",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# Voeg hier je gewenste aandelen toe
-tickers = ['AAPL', 'NVDA', 'TSLA', 'MDB', 'LXU', 'FIS', 'ALHC', 'MSFT', 'AMD', 'PLTR', 'SMCI']
-results = []
+# Custom CSS voor donker thema
+st.markdown("""
+<style>
+    .main {
+        background-color: #0b1120;
+    }
+    .stApp {
+        background-color: #0b1120;
+    }
+    .metric-card {
+        background-color: #1e293b;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid #334155;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-for ticker in tickers:
+# Titel
+st.markdown("# 📈 Markt Scanner Dashboard")
+st.markdown("**Gratis Yahoo Finance data • SMA, RSI, MACD & Fair Value analyse**")
+st.markdown("---")
+
+# Sidebar voor ticker selectie
+st.sidebar.header("⚙️ Instellingen")
+default_tickers = "AAPL,NVDA,TSLA,MDB,LXU,FIS,ALHC,MSFT,AMD,PLTR,SMCI"
+ticker_input = st.sidebar.text_area(
+    "Voer tickers in (gescheiden door komma's):",
+    value=default_tickers,
+    height=100
+)
+
+# Parse tickers
+tickers = [t.strip().upper() for t in ticker_input.split(',') if t.strip()]
+
+# Scan knop
+scan_button = st.sidebar.button("🔍 Start Scan", type="primary", use_container_width=True)
+
+# Functie om technische indicatoren te berekenen
+def calculate_indicators(ticker):
     try:
         stock = yf.Ticker(ticker)
-        # 2 jaar historie voor betrouwbare SMA200 en 52-weeks data
         hist = stock.history(period='2y')
         
         if len(hist) < 200:
-            continue
+            return None
             
         close = hist['Close']
         current_price = close.iloc[-1]
         
-        # 1. Fair Value ophalen uit gratis yfinance info (Analyst Target Price)
+        # Fair Value (Analyst Target Price)
         info = stock.info
         target_price = info.get('targetMeanPrice', None)
         fair_value_gap_pct = ((target_price - current_price) / current_price * 100) if target_price else None
         
-        # 2. Technische Indicatoren berekenen
+        # Technische Indicatoren
         sma20 = close.rolling(window=20).mean().iloc[-1]
         sma50 = close.rolling(window=50).mean().iloc[-1]
         sma200 = close.rolling(window=200).mean().iloc[-1]
@@ -47,18 +89,18 @@ for ticker in tickers:
         macd_val = macd_line.iloc[-1]
         signal_val = signal_line.iloc[-1]
         
-        # Volume ratio t.o.v. 20-daags gemiddelde
+        # Volume ratio
         volume = hist['Volume']
         vol_sma20 = volume.rolling(window=20).mean().iloc[-1]
         current_vol = volume.iloc[-1]
         vol_ratio = current_vol / vol_sma20 if vol_sma20 > 0 else 1.0
         
-        # 52-week range (op basis van de laatste ~252 handelsdagen)
+        # 52-week range
         high_52 = hist['High'].tail(252).max()
         low_52 = hist['Low'].tail(252).min()
         range_pct = ((current_price - low_52) / (high_52 - low_52)) * 100 if (high_52 - low_52) > 0 else 50.0
         
-        # 3. yrobot.us Scoring Logica (5 indicatoren)
+        # Scoring
         bullish_count = 0
         indicators = {}
         
@@ -92,14 +134,19 @@ for ticker in tickers:
         else:
             indicators['macd'] = 'Bearish'
             
-        # Rating bepalen
-        if bullish_count >= 4: rating = "Strong Buy"
-        elif bullish_count == 3: rating = "Buy"
-        elif bullish_count == 2: rating = "Hold"
-        elif bullish_count == 1: rating = "Sell"
-        else: rating = "Strong Sell"
+        # Rating
+        if bullish_count >= 4:
+            rating = "Strong Buy"
+        elif bullish_count == 3:
+            rating = "Buy"
+        elif bullish_count == 2:
+            rating = "Hold"
+        elif bullish_count == 1:
+            rating = "Sell"
+        else:
+            rating = "Strong Sell"
         
-        results.append({
+        return {
             "ticker": ticker,
             "price": round(current_price, 2),
             "target_price": round(target_price, 2) if target_price else None,
@@ -117,15 +164,181 @@ for ticker in tickers:
             "bullish_count": bullish_count,
             "indicators": indicators,
             "rating": rating
-        })
+        }
     except Exception as e:
-        print(f"Fout bij {ticker}: {e}")
+        st.error(f"Fout bij {ticker}: {e}")
+        return None
 
-# Sorteer op sterkste score eerst
-results.sort(key=lambda x: x['bullish_count'], reverse=True)
+# Functie om chart te maken
+def create_chart(ticker):
+    stock = yf.Ticker(ticker)
+    hist = stock.history(period='1y')
+    
+    fig = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.03,
+        row_heights=[0.7, 0.3],
+        subplot_titles=(f'{ticker} Prijs', 'Volume')
+    )
+    
+    # Candlestick chart
+    fig.add_trace(
+        go.Candlestick(
+            x=hist.index,
+            open=hist['Open'],
+            high=hist['High'],
+            low=hist['Low'],
+            close=hist['Close'],
+            name='Prijs'
+        ),
+        row=1, col=1
+    )
+    
+    # SMA 50
+    sma50 = hist['Close'].rolling(window=50).mean()
+    fig.add_trace(
+        go.Scatter(x=hist.index, y=sma50, name='SMA 50', line=dict(color='orange', width=1)),
+        row=1, col=1
+    )
+    
+    # SMA 200
+    sma200 = hist['Close'].rolling(window=200).mean()
+    fig.add_trace(
+        go.Scatter(x=hist.index, y=sma200, name='SMA 200', line=dict(color='purple', width=1)),
+        row=1, col=1
+    )
+    
+    # Volume
+    colors = ['green' if row['Close'] >= row['Open'] else 'red' for index, row in hist.iterrows()]
+    fig.add_trace(
+        go.Bar(x=hist.index, y=hist['Volume'], name='Volume', marker_color=colors),
+        row=2, col=1
+    )
+    
+    fig.update_layout(
+        template='plotly_dark',
+        height=600,
+        xaxis_rangeslider_visible=False,
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    
+    return fig
 
-# Opslaan als JSON voor het frontend dashboard
-with open('scan_results.json', 'w', encoding='utf-8') as f:
-    json.dump(results, f, indent=2)
+# Main app logic
+if scan_button or 'scan_results' in st.session_state:
+    if scan_button:
+        with st.spinner(f"Scannen van {len(tickers)} aandelen..."):
+            results = []
+            progress_bar = st.progress(0)
+            
+            for idx, ticker in enumerate(tickers):
+                result = calculate_indicators(ticker)
+                if result:
+                    results.append(result)
+                progress_bar.progress((idx + 1) / len(tickers))
+            
+            # Sorteer op sterkste score
+            results.sort(key=lambda x: x['bullish_count'], reverse=True)
+            st.session_state.scan_results = results
+    
+    results = st.session_state.scan_results
+    
+    if results:
+        # Resultaten tabel
+        st.markdown("### 📊 Scan Resultaten")
+        
+        # Maak DataFrame voor display
+        df_display = pd.DataFrame([
+            {
+                'Ticker': r['ticker'],
+                'Prijs': f"${r['price']}",
+                'Rating': r['rating'],
+                'RSI': r['rsi'],
+                'Fair Value Gap': f"{r['fair_value_gap_pct']:+.1f}%" if r['fair_value_gap_pct'] else 'N/A',
+                'Score': f"{r['bullish_count']}/5"
+            }
+            for r in results
+        ])
+        
+        st.dataframe(
+            df_display,
+            use_container_width=True,
+            hide_index=True
+        )
+        
+        st.markdown("---")
+        
+        # Selecteer aandeel voor detail view
+        selected_ticker = st.selectbox(
+            "Selecteer een aandeel voor gedetailleerde analyse:",
+            options=[r['ticker'] for r in results]
+        )
+        
+        selected_data = next(r for r in results if r['ticker'] == selected_ticker)
+        
+        # Detail view
+        st.markdown(f"### 📈 {selected_ticker} Analyse")
+        
+        # Rating badge
+        rating_color = "green" if "Buy" in selected_data['rating'] else ("red" if "Sell" in selected_data['rating'] else "orange")
+        st.markdown(f"#### Rating: :{rating_color}[**{selected_data['rating']}**] ({selected_data['bullish_count']}/5 bullish)")
+        
+        # Metric cards
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Huidige Prijs", f"${selected_data['price']}")
+        
+        with col2:
+            fvg_text = f"{selected_data['fair_value_gap_pct']:+.1f}%" if selected_data['fair_value_gap_pct'] else "N/A"
+            st.metric("Fair Value Gap", fvg_text)
+        
+        with col3:
+            target_text = f"${selected_data['target_price']}" if selected_data['target_price'] else "N/A"
+            st.metric("Doelkoers", target_text)
+        
+        with col4:
+            st.metric("52-Week Range", f"{selected_data['range_pct']:.0f}%", 
+                     help=f"${selected_data['low_52']} - ${selected_data['high_52']}")
+        
+        st.markdown("---")
+        
+        # Indicator details
+        st.markdown("#### 🔍 Technische Indicatoren")
+        
+        ind_col1, ind_col2, ind_col3, ind_col4, ind_col5 = st.columns(5)
+        
+        with ind_col1:
+            sma50_status = selected_data['indicators']['sma50']
+            st.metric("SMA 50", f"${selected_data['sma50']}", sma50_status)
+        
+        with ind_col2:
+            sma200_status = selected_data['indicators']['sma200']
+            st.metric("SMA 200", f"${selected_data['sma200']}", sma200_status)
+        
+        with ind_col3:
+            rsi_status = selected_data['indicators']['rsi']
+            st.metric("RSI (14)", selected_data['rsi'], rsi_status)
+        
+        with ind_col4:
+            macd_status = selected_data['indicators']['macd']
+            st.metric("MACD", f"{selected_data['macd']}", macd_status)
+        
+        with ind_col5:
+            trend_status = selected_data['indicators']['trend']
+            st.metric("Trend", trend_status, f"Vol: {selected_data['vol_ratio']}x")
+        
+        st.markdown("---")
+        
+        # Chart
+        st.markdown("#### 📊 Prijsgrafiek (1 jaar)")
+        fig = create_chart(selected_ticker)
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Timestamp
+        st.markdown(f"*Laatste update: {datetime.now().strftime('%d-%m-%Y %H:%M')}*")
 
-print(f"✅ Scan voltooid! {len(results)} aandelen verwerkt en opgeslagen in scan_results.json")
+else:
+    st.info("👈 Klik op 'Start Scan' in de sidebar om te beginnen")
