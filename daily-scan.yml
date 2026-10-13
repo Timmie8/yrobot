@@ -1,0 +1,31 @@
+name: Daily Stock Scan
+on:
+  schedule:
+    - cron: '0 14 * * *' # Draait dagelijks om 14:00 UTC (16:00 Nederlandse tijd)
+  workflow_dispatch: # Laat je het ook handmatig triggeren
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          
+      - name: Install dependencies
+        run: pip install yfinance pandas
+        
+      - name: Run scanner script
+        run: python scanner.py # (Zorg dat je Python script scanner.py heet)
+        
+      - name: Commit and push updated JSON
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add scan_results.json
+          git diff --quiet && git diff --staged --quiet || git commit -m "Auto-update: scan_results.json"
+          git push
